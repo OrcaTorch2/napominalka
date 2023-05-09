@@ -1,0 +1,41 @@
+import datetime
+from telegram.ext import Updater, CommandHandler
+
+# Замените 'YOUR_TELEGRAM_BOT_TOKEN' на токен вашего Telegram-бота
+BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'
+
+def start(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Привет! Я бот для напоминания о запланированных событиях. Введите /reminder для установки напоминания.")
+
+def set_reminder(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Введите дату и время в формате 'ГГГГ-ММ-ДД ЧЧ:ММ', например, '2023-05-10 15:30':")
+
+def process_reminder(update, context):
+    reminder_time = update.message.text
+    try:
+        reminder_datetime = datetime.datetime.strptime(reminder_time, '%Y-%m-%d %H:%M')
+        now = datetime.datetime.now()
+        time_difference = (reminder_datetime - now).total_seconds()
+
+        if time_difference <= 0:
+            context.bot.send_message(chat_id=update.effective_chat.id, text="Указанное время уже прошло. Попробуйте установить напоминание на будущее.")
+        else:
+            context.job_queue.run_once(send_reminder, time_difference, context=update.message.chat_id)
+            context.bot.send_message(chat_id=update.effective_chat.id, text="Напоминание успешно установлено!")
+    except ValueError:
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Неверный формат даты и времени. Попробуйте еще раз.")
+
+def send_reminder(context):
+    chat_id = context.job.context
+    context.bot.send_message(chat_id=chat_id, text="Напоминание: Пора выполнить запланированное событие!")
+
+updater = Updater(token=BOT_TOKEN, use_context=True)
+dispatcher = updater.dispatcher
+
+start_handler = CommandHandler('start', start)
+reminder_handler = CommandHandler('reminder', set_reminder)
+dispatcher.add_handler(start_handler)
+dispatcher.add_handler(reminder_handler)
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, process_reminder))
+
+updater.start_polling()
